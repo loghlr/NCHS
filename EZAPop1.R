@@ -6,6 +6,7 @@
 # Hispanic ethnicity. Hispanic youth can be of any race. The American Indian race category also
 # includes Alaskan Native youth. The Asian race category also includes Native Hawaiian and Pacific
 # Islander youth."
+# manual checks start here: https://www.ojjdp.gov/ojstatbb/ezapop/asp/comparison_selection.asp?selState=1
 
 #source( 'EZAPop1.R', echo=T, max.deparse.length=Inf )
 outfileroot='ChildPop_CountyXYear'
@@ -24,6 +25,8 @@ read.ezapop <- function( url, colprefix='', colsuffix='' ) {
 #url=paste0(url1, '&v031=v031&v041=v041&selState=2'); colprefix='KidPop'; colsuffix='.WhNH' # many Notes
 #url=paste0(url1, '&selState=11'); colprefix='KidPop'; colsuffix='' # single row, many Notes
 #url=u1; colprefix='KidPop'; colsuffix='' # many Notes
+#alexandria city virgina should be 51510, ru13=1?
+#url=paste0(url1, '&selState=51'); colprefix='KidPop'; colsuffix='' # 145 rows?
   # skip won't cut it, subsets add lines at top: x1 <- read.csv( url, skip=3, header=T, check.names=F )
   x1 <- readLines( url ) # very brittle, should probably put this in a try/catch for helpful error reporting
   # find first & last rows of table (again, needs descriptive error reporting)
@@ -67,6 +70,7 @@ i=!duplicated(ruc$State); stcodes <- as.integer(substr( ruc$FIPS[i], 1, 2 )); na
 d1=NULL
 for( st in setdiff(names(stcodes), 'PR') ) {
 #for( st in setdiff(names(stcodes), 'PR')[1:3] ) {
+#st='VA' #alexandria city virgina should be 51510, ru13=1. x2[grep('Alex',x2$CountyName),]
   # first fetch pops for all kids:
   u1 <- paste0( url1, '&', url.age, '&selState=', stcodes[st] )
   cat( st, ': Reading ', u1, '...\n', sep='' )
@@ -74,11 +78,13 @@ for( st in setdiff(names(stcodes), 'PR') ) {
   # link to FIPS using bare county names between x1 & ruc within state
   c1 <- sub( ' (count[yi].*|parish.*|census.*|area.*|borough.*|cit[yi].*|municipalit[yi].*)$', '', rownames(x1), ignore.case=T )
   stopifnot( nchar(c1) >= 3 )
-  c2 <- sub( ' (count[yi].*|parish.*|census.*|area.*|borough.*|cit[yi].*|municipalit[yi].*)$', '', ruc$County.Name[ruc$State == st], ignore.case=T )
+  iruc <- which( ruc$State == st ) # subset ruc indexes to state
+  stopifnot( length(iruc) >= 1 )
+  c2 <- sub( ' (count[yi].*|parish.*|census.*|area.*|borough.*|cit[yi].*|municipalit[yi].*)$', '', ruc$County.Name[iruc], ignore.case=T )
   stopifnot( length(c2) >= 1 & nchar(c2) >= 3 ) # e.g. Lee County
-  stopifnot( !is.na(l12 <- match( gsub('[^a-z]','',tolower(c1)), gsub('[^a-z]','',tolower(c2)) )) )
-  # reorganize to match d1 accumulator
-  x2 <- data.frame( St=st, CountyName=c1, CountyNameFull=rownames(x1), FIPS=ruc$FIPS[l12], RU13=ruc$RUCC2013[l12], x1, row.names=NULL )
+  stopifnot( !is.na(l12 <- match( gsub('[^a-z]','',tolower(c1)), gsub('[^a-z]','',tolower(c2)) )) ) # match county lower alpha only
+  # reorganize columns to match d1 accumulator
+  x2 <- data.frame( St=st, CountyName=c1, CountyNameFull=rownames(x1), FIPS=ruc$FIPS[iruc][l12], RU13=ruc$RUCC2013[iruc][l12], x1, row.names=NULL )
   # now add pops by subsets:
   cat( st, ': Reading subsets ... ', sep='' )
   for( ss in names(subsets) ) {
